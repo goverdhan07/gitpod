@@ -24,6 +24,8 @@ import {
     GuessGitTokenScopesParams,
     GuessedGitTokenScopes,
     ProjectEnvVar,
+    UserSSHPublicKeyValue,
+    SSHPublicKeyValue,
 } from "./protocol";
 import {
     Team,
@@ -147,6 +149,12 @@ export interface GitpodServer extends JsonRpcServer<GitpodClient>, AdminServer, 
     getAllEnvVars(): Promise<UserEnvVarValue[]>;
     setEnvVar(variable: UserEnvVarValue): Promise<void>;
     deleteEnvVar(variable: UserEnvVarValue): Promise<void>;
+
+    // User SSH Keys
+    hasSSHPublicKey(): Promise<boolean>;
+    getSSHPublicKeys(): Promise<UserSSHPublicKeyValue[]>;
+    addSSHPublicKey(value: SSHPublicKeyValue): Promise<UserSSHPublicKeyValue>;
+    deleteSSHPublicKey(id: string): Promise<void>;
 
     // Teams
     getTeams(): Promise<Team[]>;
