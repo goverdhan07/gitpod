@@ -18,7 +18,7 @@ ENV CLOUDSDK_CORE_DISABLE_PROMPTS=1
 RUN apt update \
   && apt dist-upgrade -y \
   && apt install -yq --no-install-recommends \
-      git git-lfs openssh-client lz4 e2fsprogs coreutils tar strace xfsprogs curl ca-certificates strace \
+      git git-lfs git-crypt openssh-client lz4 e2fsprogs coreutils tar strace xfsprogs curl ca-certificates strace \
       apt-transport-https \
       python3-crcmod \
       gnupg \
