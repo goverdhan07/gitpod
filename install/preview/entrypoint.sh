@@ -4,11 +4,6 @@
 
 set -e
 
-if [ "$1" != "logging" ]; then
-  $0 logging 2>&1 | /prettylog
-  exit
-fi
-
 # check for minimum requirements
 REQUIRED_MEM_KB=$((6 * 1024 * 1024))
 total_mem_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
@@ -136,7 +131,6 @@ yq eval-all -i '.spec.jobTemplate.spec.spec.containers[].env[] | (select(.name==
 yq eval-all -i 'del(.spec.template.spec.initContainers[0])' /var/lib/rancher/k3s/server/manifests/gitpod/*_DaemonSet_ws-daemon.yaml
 
 for f in /var/lib/rancher/k3s/server/manifests/gitpod/*.yaml; do (cat "$f"; echo) >> /var/lib/rancher/k3s/server/manifests/gitpod.yaml; done
-rm -rf /var/lib/rancher/k3s/server/manifests/gitpod
 
 /bin/k3s server --disable traefik \
   --node-label gitpod.io/workload_meta=true \
