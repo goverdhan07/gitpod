@@ -56,6 +56,11 @@ var sendCmd = &cobra.Command{
 			Set("totalWorkspaces", data.TotalWorkspaces).
 			Set("totalInstances", data.TotalInstances)
 
+		platform := os.Getenv("GITPOD_INSTALLATION_PLATFORM")
+		if platform != "" {
+			properties.Set("platform", platform)
+		}
+
 		if data.InstallationAdmin.Settings.SendCustomerID {
 			properties.Set("customerID", data.CustomerID)
 		}

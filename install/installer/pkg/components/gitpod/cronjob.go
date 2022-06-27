@@ -64,6 +64,10 @@ func cronjob(ctx *common.RenderContext) ([]runtime.Object, error) {
 												Value: ctx.VersionManifest.Version,
 											},
 											{
+												Name:  "GITPOD_INSTALLATION_PLATFORM",
+												Value: "installer",
+											},
+											{
 												Name:  "SERVER_URL",
 												Value: fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", common.ServerComponent, ctx.Namespace, common.ServerInstallationAdminPort),
 											},

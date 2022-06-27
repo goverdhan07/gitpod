@@ -303,6 +303,11 @@ spec:
                 'del(select(.kind == "StatefulSet" and .metadata.name == "openvsx-proxy").status)' \
                 "${GITPOD_OBJECTS}/templates/gitpod.yaml"
 
+              echo "Gitpod: Update GITPOD_INSTALLATION_PLATFORM telemetry value"
+              yq eval-all --inplace \
+                '(select(.kind == "CronJob" and .metadata.name == "gitpod-telemetry") | .spec.jobTemplate.spec.spec.containers[].env[] | (select(.name=="GITPOD_INSTALLATION_PLATFORM") |.value |= sub("installer"; "repl{{ Distribution }}"))'
+                "${GITPOD_OBJECTS}/templates/gitpod.yaml"
+
               if [ '{{repl ConfigOptionEquals "reg_incluster" "1" }}' = "true" ];
               then
                 echo "Gitpod: Add the local registry secret to the in-cluster registry secret"
