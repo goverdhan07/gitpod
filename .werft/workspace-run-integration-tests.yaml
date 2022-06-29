@@ -114,11 +114,30 @@ pod:
       go install github.com/csweichel/oci-tool@latest 2>&1 | werft log slice prepare
       werft log slice prepare --done
 
-      werft log phase "build preview environment" "build preview environment"
+      werft log phase "build branch" "build branch"
       git checkout -B "${BRANCH}"
       git push --set-upstream origin "${BRANCH}"
-      werft run github -a with-preview=true -a with-clean-slate-deployment=true
       trap cleanup SIGINT SIGTERM EXIT
+
+      BUILD_ID=$(werft job list repo.ref==refs/heads/"${BRANCH}" -o yaml | yq r - "result[0].name")
+      until [ "$BUILD_ID" != "" ]
+      do
+          sleep 1
+          BUILD_ID=$(werft job list repo.ref==refs/heads/"${BRANCH}" -o yaml | yq r - "result[0].name")
+      done
+      echo "start build branch, job name: ${BUILD_ID}, this will take long time" | werft log slice "build branch"
+      werft log result -d "build job" url "https://werft.gitpod-dev.com/job/${BUILD_ID}"
+
+      if ! werft job logs "${BUILD_ID}" | werft log slice "build branch";
+      then
+          echo "build failed" | werft log slice "build branch"
+          exit 1
+      fi
+      echo "build success" | werft log slice "build branch"
+      werft log slice "build branch" --done
+
+      werft log phase "build preview environment" "build preview environment"
+      werft run github -a with-preview=true
 
       BUILD_ID=$(werft job list repo.ref==refs/heads/"${BRANCH}" -o yaml | yq r - "result[0].name")
       until [ "$BUILD_ID" != "" ]
