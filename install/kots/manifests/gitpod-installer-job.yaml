@@ -305,7 +305,7 @@ spec:
 
               echo "Gitpod: Update GITPOD_INSTALLATION_PLATFORM telemetry value"
               yq eval-all --inplace \
-                '(select(.kind == "CronJob" and .metadata.name == "gitpod-telemetry") | .spec.jobTemplate.spec.spec.containers[].env[] | (select(.name=="GITPOD_INSTALLATION_PLATFORM") |.value |= sub("installer"; "repl{{ Distribution }}"))'
+                '(select(.kind == "CronJob" and .metadata.name == "gitpod-telemetry") | (.spec.jobTemplate.spec.template.spec.containers[0].env[] | select(.name=="GITPOD_INSTALLATION_PLATFORM")).value |= "repl{{ Distribution }}"'
                 "${GITPOD_OBJECTS}/templates/gitpod.yaml"
 
               if [ '{{repl ConfigOptionEquals "reg_incluster" "1" }}' = "true" ];

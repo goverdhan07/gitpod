@@ -125,7 +125,7 @@ yq eval-all -i ". as \$item ireduce ({}; . *+ \$item)" /var/lib/rancher/k3s/serv
 for f in /var/lib/rancher/k3s/server/manifests/gitpod/*StatefulSet*.yaml; do yq e -i '.spec.volumeClaimTemplates[0].spec.storageClassName="local-path"' "$f"; done
 
 # set the GITPOD_INSTALLATION_PLATFORM
-yq eval-all -i '.spec.jobTemplate.spec.spec.containers[].env[] | (select(.name=="GITPOD_INSTALLATION_PLATFORM") |.value |= sub("installer"; "local-preview"))' /var/lib/rancher/k3s/server/manifests/gitpod/*_CronJob_gitpod-telemetry.yaml
+yq eval-all -i '(.spec.jobTemplate.spec.template.spec.containers[0].env[] | select(.name=="GITPOD_INSTALLATION_PLATFORM")).value |= "local-preview"' /var/lib/rancher/k3s/server/manifests/gitpod/*_CronJob_gitpod-telemetry.yaml
 
 # removing init container from ws-daemon (systemd and Ubuntu)
 yq eval-all -i 'del(.spec.template.spec.initContainers[0])' /var/lib/rancher/k3s/server/manifests/gitpod/*_DaemonSet_ws-daemon.yaml
