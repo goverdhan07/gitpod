@@ -26,7 +26,7 @@ import {
     WorkspaceManagerClientProviderDBSource,
     WorkspaceManagerClientProviderSource,
 } from "@gitpod/ws-manager/lib/client-provider-source";
-import { ClusterService, ClusterServiceServer } from "./cluster-service-server";
+import { ClusterService, ClusterServiceServer, ClusterSyncService } from "./cluster-service-server";
 import { IAnalyticsWriter } from "@gitpod/gitpod-protocol/lib/analytics";
 import { newAnalyticsWriterFromEnv } from "@gitpod/gitpod-protocol/lib/util/analytics";
 import { MetaInstanceController } from "./meta-instance-controller";
@@ -60,6 +60,7 @@ export const containerModule = new ContainerModule((bind) => {
 
     bind(ClusterServiceServer).toSelf().inSingletonScope();
     bind(ClusterService).toSelf().inRequestScope();
+    bind(ClusterSyncService).toSelf().inSingletonScope();
 
     bind(TracingManager).toSelf().inSingletonScope();
 

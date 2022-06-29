@@ -42,6 +42,11 @@ export class WorkspaceClusterDBImpl implements WorkspaceClusterDB {
         return repo.findOne(name);
     }
 
+    async findAll(): Promise<WorkspaceCluster[]> {
+        const repo = await this.getRepo();
+        return repo.find();
+    }
+
     async findFiltered(predicate: DeepPartial<WorkspaceClusterFilter>): Promise<WorkspaceClusterWoTLS[]> {
         const prototype: WorkspaceClusterWoTLS = {
             name: "",

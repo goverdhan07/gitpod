@@ -103,6 +103,11 @@ export interface WorkspaceClusterDB {
      * @param predicate
      */
     findFiltered(predicate: DeepPartial<WorkspaceClusterFilter>): Promise<WorkspaceClusterWoTLS[]>;
+
+    /**
+     * Lists all workspaces clusters
+     */
+    findAll(): Promise<WorkspaceCluster[]>;
 }
 export interface WorkspaceClusterFilter extends Pick<WorkspaceCluster, "state" | "govern" | "url"> {
     minScore: number;

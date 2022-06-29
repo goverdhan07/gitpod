@@ -149,7 +149,7 @@ export class ClusterService implements IClusterServiceServer {
                     tls,
                 };
 
-                let classConstraints = await this.getSupportedWorkspaceClasses(newCluster);
+                let classConstraints = await getSupportedWorkspaceClasses(this.clientProvider, newCluster);
                 newCluster.admissionConstraints = admissionConstraints.concat(classConstraints);
 
                 await this.clusterDB.save(newCluster);
@@ -302,24 +302,6 @@ export class ClusterService implements IClusterServiceServer {
             .runReconcileNow()
             .catch((err) => log.error("error during forced reconcile", err, payload));
     }
-
-    public async getSupportedWorkspaceClasses(cluster: WorkspaceCluster) {
-        let constraints = await new Promise<AdmissionConstraintHasClass[]>((resolve, reject) => {
-            const c = this.clientProvider.createClient(cluster);
-            c.describeCluster(new DescribeClusterRequest(), (err: any, resp: DescribeClusterResponse) => {
-                if (err) {
-                    reject(
-                        new GRPCError(grpc.status.FAILED_PRECONDITION, `cannot reach ${cluster.url}: ${err.message}`),
-                    );
-                } else {
-                    let classes = resp.getWorkspaceclassesList().map((cl) => mapWorkspaceClass(cl));
-                    resolve(classes);
-                }
-            });
-        });
-
-        return constraints;
-    }
 }
 
 function convertToGRPC(ws: WorkspaceClusterWoTLS): ClusterStatus {
@@ -438,6 +420,60 @@ function getClientInfo(call: grpc.ServerUnaryCall<any, any>) {
     return { clientIP, clientName, userAgent };
 }
 
+@injectable()
+export class ClusterSyncService {
+    @inject(Configuration)
+    protected readonly config: Configuration;
+
+    @inject(WorkspaceClusterDB)
+    protected readonly clusterDB: WorkspaceClusterDB;
+
+    @inject(WorkspaceManagerClientProvider)
+    protected readonly clientProvider: WorkspaceManagerClientProvider;
+
+    protected timer: NodeJS.Timer;
+
+    public start() {
+        this.timer = setInterval(() => this.reconcile(), this.config.clusterSyncIntervalSeconds * 1000);
+    }
+
+    private async reconcile() {
+        log.debug("reconciling workspace classes...");
+        let allClusters = await this.clusterDB.findAll();
+        for (const cluster of allClusters) {
+            try {
+                let supportedClasses = await getSupportedWorkspaceClasses(this.clientProvider, cluster);
+                let existingOtherConstraints = cluster.admissionConstraints?.filter((c) => c.type !== "has-class");
+                cluster.admissionConstraints = existingOtherConstraints?.concat(supportedClasses);
+                await this.clusterDB.save(cluster);
+            } catch (err) {
+                log.error("failed to reconcile workspace classes for cluster", err, { cluster: cluster.name });
+            }
+        }
+        log.debug("done reconciling workspace classes");
+    }
+
+    public stop() {
+        clearInterval(this.timer);
+    }
+}
+
+async function getSupportedWorkspaceClasses(clientProvider: WorkspaceManagerClientProvider, cluster: WorkspaceCluster) {
+    let constraints = await new Promise<AdmissionConstraintHasClass[]>((resolve, reject) => {
+        const c = clientProvider.createClient(cluster);
+        c.describeCluster(new DescribeClusterRequest(), (err: any, resp: DescribeClusterResponse) => {
+            if (err) {
+                reject(new GRPCError(grpc.status.FAILED_PRECONDITION, `cannot reach ${cluster.url}: ${err.message}`));
+            } else {
+                let classes = resp.getWorkspaceclassesList().map((cl) => mapWorkspaceClass(cl));
+                resolve(classes);
+            }
+        });
+    });
+
+    return constraints;
+}
+
 // "grpc" does not allow additional methods on it's "ServiceServer"s so we have an additional wrapper here
 @injectable()
 export class ClusterServiceServer {
@@ -446,6 +482,9 @@ export class ClusterServiceServer {
 
     @inject(ClusterService)
     protected readonly service: ClusterService;
+
+    @inject(ClusterSyncService)
+    protected readonly sync: ClusterSyncService;
 
     protected server: grpc.Server | undefined = undefined;
 
@@ -468,6 +507,7 @@ export class ClusterServiceServer {
             log.info(`gRPC server listening on: ${bindTo}`);
             server.start();
         });
+        this.sync.start();
     }
 
     public async stop() {
@@ -478,6 +518,7 @@ export class ClusterServiceServer {
             });
             this.server = undefined;
         }
+        this.sync.stop();
     }
 }
 
