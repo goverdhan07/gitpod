@@ -142,8 +142,7 @@ pod:
 
       werft log phase "kubectx" "kubectx"
       mkdir -p /home/gitpod/.ssh
-      /workspace/dev/preview/util/download-and-merge-harvester-kubeconfig.sh | werft log slice "kubectx"
-      /workspace/dev/preview/install-k3s-kubeconfig.sh | werft log slice "kubectx"
+      previewctl install-context | werft log slice "kubectx"
       werft log slice "kubectx" --done
 
       werft log phase "integration test" "integration test"
