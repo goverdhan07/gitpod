@@ -35,7 +35,12 @@ import {
     UpdateResponse,
     AdmissionConstraint as GRPCAdmissionConstraint,
 } from "@gitpod/ws-manager-bridge-api/lib";
-import { DescribeClusterRequest, DescribeClusterResponse, WorkspaceClass } from "@gitpod/ws-manager/lib";
+import {
+    DescribeClusterRequest,
+    DescribeClusterResponse,
+    GetWorkspacesRequest,
+    WorkspaceClass,
+} from "@gitpod/ws-manager/lib";
 import { WorkspaceManagerClientProvider } from "@gitpod/ws-manager/lib/client-provider";
 import {
     WorkspaceManagerClientProviderCompositeSource,
@@ -46,6 +51,7 @@ import { ServiceError as grpcServiceError } from "@grpc/grpc-js";
 import { inject, injectable } from "inversify";
 import { BridgeController } from "./bridge-controller";
 import { Configuration } from "./config";
+import { getExperimentsClientForBackend } from "@gitpod/gitpod-protocol/lib/experiments/configcat-server";
 
 export interface ClusterServiceServerOptions {
     port: number;
@@ -149,8 +155,32 @@ export class ClusterService implements IClusterServiceServer {
                     tls,
                 };
 
-                let classConstraints = await getSupportedWorkspaceClasses(this.clientProvider, newCluster);
-                newCluster.admissionConstraints = admissionConstraints.concat(classConstraints);
+                const enabled = await getExperimentsClientForBackend().getValueAsync(
+                    "workspace_classes_backend",
+                    false,
+                    {},
+                );
+                if (enabled) {
+                    let classConstraints = await getSupportedWorkspaceClasses(this.clientProvider, newCluster);
+                    newCluster.admissionConstraints = admissionConstraints.concat(classConstraints);
+                } else {
+                    // try to connect to validate the config. Throws an exception if it fails.
+                    await new Promise<void>((resolve, reject) => {
+                        const c = this.clientProvider.createClient(newCluster);
+                        c.getWorkspaces(new GetWorkspacesRequest(), (err: any) => {
+                            if (err) {
+                                reject(
+                                    new GRPCError(
+                                        grpc.status.FAILED_PRECONDITION,
+                                        `cannot reach ${req.url}: ${err.message}`,
+                                    ),
+                                );
+                            } else {
+                                resolve();
+                            }
+                        });
+                    });
+                }
 
                 await this.clusterDB.save(newCluster);
                 log.info({}, "cluster registered", { cluster: req.name });
@@ -433,8 +463,11 @@ export class ClusterSyncService {
 
     protected timer: NodeJS.Timer;
 
-    public start() {
-        this.timer = setInterval(() => this.reconcile(), this.config.clusterSyncIntervalSeconds * 1000);
+    public async start() {
+        const enabled = await getExperimentsClientForBackend().getValueAsync("workspace_classes_backend", false, {});
+        if (enabled) {
+            this.timer = setInterval(() => this.reconcile(), this.config.clusterSyncIntervalSeconds * 1000);
+        }
     }
 
     private async reconcile() {
@@ -453,8 +486,11 @@ export class ClusterSyncService {
         log.debug("done reconciling workspace classes");
     }
 
-    public stop() {
-        clearInterval(this.timer);
+    public async stop() {
+        const enabled = await getExperimentsClientForBackend().getValueAsync("workspace_classes_backend", false, {});
+        if (enabled) {
+            clearInterval(this.timer);
+        }
     }
 }
 
