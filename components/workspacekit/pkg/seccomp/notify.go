@@ -111,51 +111,59 @@ func Handle(fd libseccomp.ScmpFd, handler SyscallHandler) (stop chan<- struct{},
 	stp := make(chan struct{})
 
 	handledSyscalls := mapHandler(handler)
+	// for i := 0; i < 20; i++ {
 	go func() {
 		for {
 			req, err := libseccomp.NotifReceive(fd)
-			select {
-			case <-stp:
-				// if we're asked stop we might still have to answer a syscall.
-				// We do this on a best effort basis answering with EPERM.
-				if err != nil {
-					_ = libseccomp.NotifRespond(fd, &libseccomp.ScmpNotifResp{
-						ID:    req.ID,
-						Error: 1,
-						Val:   0,
-						Flags: 0,
-					})
-				}
-			default:
-			}
 			if err != nil {
-				ec <- err
-				if err == unix.ECANCELED {
+				log.WithError(err).Warn("NotifReceive got a error")
+			}
+			go func() {
+				select {
+				case <-stp:
+					// if we're asked stop we might still have to answer a syscall.
+					// We do this on a best effort basis answering with EPERM.
+					if err != nil {
+						_ = libseccomp.NotifRespond(fd, &libseccomp.ScmpNotifResp{
+							ID:    req.ID,
+							Error: 1,
+							Val:   0,
+							Flags: 0,
+						})
+					}
+				default:
+				}
+				if err != nil {
+					ec <- err
+					if err == unix.ECANCELED {
+						return
+					}
+
+					// continue
 					return
 				}
 
-				continue
-			}
+				syscallName, _ := req.Data.Syscall.GetName()
 
-			syscallName, _ := req.Data.Syscall.GetName()
+				handler, ok := handledSyscalls[syscallName]
+				if !ok {
+					handler = handleUnknownSyscall
+				}
+				val, errno, flags := handler(req)
 
-			handler, ok := handledSyscalls[syscallName]
-			if !ok {
-				handler = handleUnknownSyscall
-			}
-			val, errno, flags := handler(req)
-
-			err = libseccomp.NotifRespond(fd, &libseccomp.ScmpNotifResp{
-				ID:    req.ID,
-				Error: errno,
-				Val:   val,
-				Flags: flags,
-			})
-			if err != nil {
-				ec <- err
-			}
+				err = libseccomp.NotifRespond(fd, &libseccomp.ScmpNotifResp{
+					ID:    req.ID,
+					Error: errno,
+					Val:   val,
+					Flags: flags,
+				})
+				if err != nil {
+					ec <- err
+				}
+			}()
 		}
 	}()
+	// }
 
 	return stp, ec
 }
@@ -210,11 +218,11 @@ func (h *InWorkspaceHandler) Mount(req *libseccomp.ScmpNotifReq) (val uint64, er
 	}
 	defer memFile.Close()
 
-	err = libseccomp.NotifIDValid(h.FD, req.ID)
-	if err != nil {
-		log.WithError(err).Error("invalid notify ID", req.ID)
-		return Errno(unix.EPERM)
-	}
+	// err = libseccomp.NotifIDValid(h.FD, req.ID)
+	// if err != nil {
+	// 	log.WithError(err).Error("invalid notify ID", req.ID)
+	// 	return Errno(unix.EPERM)
+	// }
 
 	source, err := readarg.ReadString(memFile, int64(req.Data.Args[0]))
 	if err != nil {
