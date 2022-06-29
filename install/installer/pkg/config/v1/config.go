@@ -113,6 +113,8 @@ type Config struct {
 
 	Customization *[]Customization `json:"customization,omitempty"`
 
+	Components *Components `json:"components,omitempty"`
+
 	Experimental *experimental.Config `json:"experimental,omitempty"`
 }
 
@@ -339,4 +341,16 @@ type Customization struct {
 
 type CustomizationSpec struct {
 	Env []corev1.EnvVar `json:"env"`
+}
+
+type Components struct {
+	Proxy *ProxyComponent `json:"proxy,omitempty"`
+}
+
+type ProxyComponent struct {
+	Service *ComponentTypeService `json:"service,omitempty"`
+}
+
+type ComponentTypeService struct {
+	ServiceType *corev1.ServiceType `json:"serviceType,omitempty" validate:"omitempty,service_config_type"`
 }
