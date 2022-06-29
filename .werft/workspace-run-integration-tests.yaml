@@ -117,7 +117,7 @@ pod:
       werft log phase "build preview environment" "build preview environment"
       git checkout -B "${BRANCH}"
       git push --set-upstream origin "${BRANCH}"
-      werft run github -a with-preview=true
+      werft run github -a with-preview=true -a with-clean-slate-deployment=true
       trap cleanup SIGINT SIGTERM EXIT
 
       BUILD_ID=$(werft job list repo.ref==refs/heads/"${BRANCH}" -o yaml | yq r - "result[0].name")
