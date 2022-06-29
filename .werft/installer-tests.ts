@@ -255,6 +255,7 @@ function runIntegrationTests() {
 
 function callMakeTargets(phase: string, description: string, makeTarget: string) {
     werft.phase(phase, description);
+    werft.log(phase, `Calling ${makeTarget}`);
 
     const response = exec(`make -C ${makefilePath} ${makeTarget}`, {
         slice: phase,
