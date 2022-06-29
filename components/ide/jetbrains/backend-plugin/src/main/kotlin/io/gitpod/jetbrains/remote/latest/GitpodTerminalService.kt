@@ -10,6 +10,9 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.remoteDev.util.onTerminationOrNow
 import com.intellij.util.application
 import com.jetbrains.rd.util.lifetime.Lifetime
+import com.jetbrains.rdserver.portForwarding.PortForwardingDiscovery
+import com.jetbrains.rdserver.portForwarding.PortForwardingManager
+import com.jetbrains.rdserver.portForwarding.remoteDev.PortEventsProcessor
 import com.jetbrains.rdserver.terminal.BackendTerminalManager
 import io.gitpod.jetbrains.remote.GitpodManager
 import io.gitpod.supervisor.api.Status
@@ -29,11 +32,13 @@ class GitpodTerminalService(session: ClientProjectSession) : Disposable {
     private companion object {
         /** Indicates if this service is already running, because we shouldn't run it more than once. */
         var isRunning = false
+        val forwardedPortsList: MutableSet<Int> = mutableSetOf()
     }
 
     private val lifetime = Lifetime.Eternal.createNested()
     private val terminalView = TerminalView.getInstance(session.project)
     private val backendTerminalManager = BackendTerminalManager.getInstance(session.project)
+    private val portForwardingManager = PortForwardingManager.getInstance(session.project)
     private val terminalServiceFutureStub = TerminalServiceGrpc.newFutureStub(GitpodManager.supervisorChannel)
     private val statusServiceStub = StatusServiceGrpc.newStub(GitpodManager.supervisorChannel)
 
@@ -98,6 +103,7 @@ class GitpodTerminalService(session: ClientProjectSession) : Disposable {
 
             if (terminal != null) {
                 createAttachedSharedTerminal(terminal)
+                autoForwardAllPortsFromTerminal(terminal)
             }
         }
     }
@@ -195,5 +201,30 @@ class GitpodTerminalService(session: ClientProjectSession) : Disposable {
             supervisorTerminal.title,
             "gp tasks attach ${supervisorTerminal.alias}"
         )
+    }
+
+    private fun autoForwardAllPortsFromTerminal(supervisorTerminal: TerminalOuterClass.Terminal) {
+        val discoveryCallback = object : PortForwardingDiscovery {
+            /**
+             * @return Whether port should be forwarded or not.
+             * We shouldn't try to forward ports that are already forwarded.
+             */
+            override fun onPortDiscovered(hostPort: Int): Boolean = !forwardedPortsList.contains(hostPort)
+
+            override fun getEventsProcessor(hostPort: Int) = object : PortEventsProcessor {
+                override fun onPortForwarded(hostPort: Int, clientPort: Int) {
+                    forwardedPortsList.add(hostPort)
+                    thisLogger().info("Forwarded port $hostPort from Supervisor's Terminal " +
+                            "${supervisorTerminal.pid} to client's port $clientPort.")
+                }
+
+                override fun onPortForwardingFailed(hostPort: Int, reason: String) {
+                    thisLogger().error("Failed to forward port $hostPort from Supervisor's Terminal " +
+                            "${supervisorTerminal.pid}: $reason")
+                }
+            }
+        }
+
+        portForwardingManager.forwardPortsOfPid(lifetime, supervisorTerminal.pid, discoveryCallback, true)
     }
 }
