@@ -24,6 +24,7 @@ import {
     UserDB,
     WorkspaceDB,
 } from "@gitpod/gitpod-db/lib";
+import { BlockedRepositoryDB } from "@gitpod/gitpod-db/lib/blocked-repository-db";
 import {
     CommitContext,
     Disposable,
@@ -200,6 +201,7 @@ export class WorkspaceStarter {
     @inject(OneTimeSecretServer) protected readonly otsServer: OneTimeSecretServer;
     @inject(ProjectDB) protected readonly projectDB: ProjectDB;
     @inject(ContextParser) protected contextParser: ContextParser;
+    @inject(BlockedRepositoryDB) protected readonly blockedRepositoryDB: BlockedRepositoryDB;
 
     public async startWorkspace(
         ctx: TraceContext,
@@ -351,6 +353,7 @@ export class WorkspaceStarter {
 
     protected async checkBlockedRepository(user: User, contextURL: string) {
         const hit = this.config.blockedRepositories.find((r) => !!contextURL && r.urlRegExp.test(contextURL));
+        this.blockedRepositoryDB.find(contextURL);
         if (!hit) {
             return;
         }
